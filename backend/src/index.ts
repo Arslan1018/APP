@@ -99,6 +99,21 @@ app.use('/api/payments', paymentRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/upload', uploadRoutes);
 
+ app.use('/api/upload', uploadRoutes);
+  
+  // Health check route - ye add karo
+ app.get('/api/health', (req, res) => {
+   res.json({ status: 'ok', message: 'Armenu API is running' })
+ })
+  
+ // ______________
+  // ERROR HANDLING
+  // ______________
+  app.use(notFound);
+ app.use(errorHandler);
+
+
+
 // ─────────────────────────────────────────
 // ERROR HANDLING
 // ─────────────────────────────────────────
