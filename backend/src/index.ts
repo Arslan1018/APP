@@ -108,9 +108,9 @@ app.use(errorHandler);
 // ─────────────────────────────────────────
 // START SERVER
 // ─────────────────────────────────────────
-app.listen(PORT, () => {
-  logger.info(`🚀 AR Menu API running on http://localhost:${PORT}`);
-  logger.info(`📖 Environment: ${process.env.NODE_ENV || 'development'}`);
-});
+//app.listen(PORT, () => {
+ // logger.info(`🚀 AR Menu API running on http://localhost:${PORT}`);
+  //logger.info(`📖 Environment: ${process.env.NODE_ENV || 'development'}`);
+//});
 
 export default app;
