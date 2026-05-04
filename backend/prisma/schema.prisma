@@ -1,0 +1,298 @@
+// This is your Prisma schema file
+// AR Menu Platform - Complete Database Schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ─────────────────────────────────────────
+// ENUMS
+// ─────────────────────────────────────────
+
+enum UserRole {
+  SUPER_ADMIN
+  RESTAURANT_OWNER
+  STAFF
+  CUSTOMER
+}
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+  REFUNDED
+  FAILED
+}
+
+enum ItemCategory {
+  APPETIZER
+  MAIN_COURSE
+  DESSERT
+  BEVERAGE
+  SIDE
+  SPECIAL
+}
+
+// ─────────────────────────────────────────
+// USERS
+// ─────────────────────────────────────────
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  password     String
+  name         String
+  phone        String?
+  role         UserRole @default(CUSTOMER)
+  isVerified   Boolean  @default(false)
+  refreshToken String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant Restaurant?
+  orders     Order[]
+  sessions   UserSession[]
+
+  @@map("users")
+}
+
+model UserSession {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([token])
+  @@map("user_sessions")
+}
+
+// ─────────────────────────────────────────
+// RESTAURANTS
+// ─────────────────────────────────────────
+
+model Restaurant {
+  id          String  @id @default(uuid())
+  ownerId     String  @unique
+  name        String
+  slug        String  @unique
+  description String?
+  address     String?
+  city        String?
+  country     String  @default("TW")
+  phone       String?
+  email       String?
+  logoUrl     String?
+  coverUrl    String?
+  currency    String  @default("TWD")
+  isActive    Boolean @default(true)
+  isPremium   Boolean @default(false)
+
+  // Stripe
+  stripeAccountId String?
+  stripeCustomerId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  owner    User       @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  menus    Menu[]
+  orders   Order[]
+  qrScans  QRScan[]
+  staff    RestaurantStaff[]
+
+  @@index([slug])
+  @@map("restaurants")
+}
+
+model RestaurantStaff {
+  id           String   @id @default(uuid())
+  restaurantId String
+  userId       String
+  role         String   @default("STAFF")
+  createdAt    DateTime @default(now())
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@unique([restaurantId, userId])
+  @@map("restaurant_staff")
+}
+
+// ─────────────────────────────────────────
+// MENUS
+// ─────────────────────────────────────────
+
+model Menu {
+  id           String   @id @default(uuid())
+  restaurantId String
+  name         String
+  description  String?
+  isActive     Boolean  @default(true)
+  sortOrder    Int      @default(0)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  items      MenuItem[]
+
+  @@index([restaurantId])
+  @@map("menus")
+}
+
+// ─────────────────────────────────────────
+// MENU ITEMS
+// ─────────────────────────────────────────
+
+model MenuItem {
+  id          String       @id @default(uuid())
+  menuId      String
+  name        String
+  description String?
+  price       Float
+  category    ItemCategory @default(MAIN_COURSE)
+  imageUrl    String?
+  isAvailable Boolean      @default(true)
+  isPopular   Boolean      @default(false)
+  calories    Int?
+  allergens   String[]     @default([])
+  tags        String[]     @default([])
+  sortOrder   Int          @default(0)
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+
+  menu       Menu        @relation(fields: [menuId], references: [id], onDelete: Cascade)
+  arModel    ARModel?
+  qrCodes    QRCode[]
+  orderItems OrderItem[]
+
+  @@index([menuId])
+  @@map("menu_items")
+}
+
+// ─────────────────────────────────────────
+// AR MODELS
+// ─────────────────────────────────────────
+
+model ARModel {
+  id         String   @id @default(uuid())
+  itemId     String   @unique
+  glbUrl     String   // GLTF Binary - main 3D model
+  usdzUrl    String?  // USDZ for iOS AR Quick Look
+  scale      Float    @default(1.0)
+  positionX  Float    @default(0)
+  positionY  Float    @default(0)
+  positionZ  Float    @default(0)
+  rotationY  Float    @default(0)
+  animated   Boolean  @default(false)
+  fileSize   Int?     // bytes
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  item MenuItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@map("ar_models")
+}
+
+// ─────────────────────────────────────────
+// QR CODES
+// ─────────────────────────────────────────
+
+model QRCode {
+  id         String   @id @default(uuid())
+  itemId     String
+  code       String   @unique @default(uuid())
+  qrImageUrl String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+
+  item    MenuItem @relation(fields: [itemId], references: [id], onDelete: Cascade)
+  scans   QRScan[]
+
+  @@index([code])
+  @@map("qr_codes")
+}
+
+model QRScan {
+  id           String   @id @default(uuid())
+  qrCodeId     String
+  restaurantId String
+  deviceType   String?
+  country      String?
+  city         String?
+  ip           String?
+  userAgent    String?
+  scannedAt    DateTime @default(now())
+
+  qrCode     QRCode     @relation(fields: [qrCodeId], references: [id], onDelete: Cascade)
+  restaurant Restaurant @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+
+  @@index([qrCodeId])
+  @@index([restaurantId])
+  @@index([scannedAt])
+  @@map("qr_scans")
+}
+
+// ─────────────────────────────────────────
+// ORDERS
+// ─────────────────────────────────────────
+
+model Order {
+  id             String        @id @default(uuid())
+  restaurantId   String
+  customerId     String?
+  orderNumber    String        @unique
+  status         OrderStatus   @default(PENDING)
+  paymentStatus  PaymentStatus @default(UNPAID)
+  subtotal       Float
+  tax            Float         @default(0)
+  total          Float
+  notes          String?
+  tableNumber    String?
+  customerName   String?
+  customerPhone  String?
+  customerEmail  String?
+  stripePaymentId String?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+
+  restaurant Restaurant  @relation(fields: [restaurantId], references: [id], onDelete: Cascade)
+  customer   User?       @relation(fields: [customerId], references: [id])
+  items      OrderItem[]
+
+  @@index([restaurantId])
+  @@index([customerId])
+  @@index([status])
+  @@index([createdAt])
+  @@map("orders")
+}
+
+model OrderItem {
+  id         String   @id @default(uuid())
+  orderId    String
+  itemId     String
+  quantity   Int
+  unitPrice  Float
+  totalPrice Float
+  notes      String?
+
+  order Order    @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  item  MenuItem @relation(fields: [itemId], references: [id])
+
+  @@map("order_items")
+}
